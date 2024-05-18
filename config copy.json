@@ -1,0 +1,10 @@
+{
+    "porcupine_access_key": "===",
+    "porcupine_hot_word": "picovoice",
+    "baidu_app_id": "===",
+    "baidu_api_key": "===",
+    "baidu_secret_key": "===",
+    "openai_api_key": "===",
+    "openai_base_url": "https://api.deepseek.com",
+    "max_history_length": 10
+}
