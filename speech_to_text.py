@@ -8,7 +8,7 @@ def initialize_baidu_client(APP_ID, API_KEY, SECRET_KEY):
 def recognize_speech_from_mic(client, recognizer, microphone):
     with microphone as source:
         print("\r请开始说话...     ",end='')
-        recognizer.energy_threshold = 500  # 通过调整能量阈值来消除噪音
+        recognizer.energy_threshold = 300  # 通过调整能量阈值来消除噪音
         audio = recognizer.listen(source)
     print("\r说话完成           ",end='')
     audio_data = audio.get_wav_data()
