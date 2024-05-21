@@ -1,53 +1,12 @@
 import os
 import json
 from openai import OpenAI
-import requests
-import subprocess
-import tempfile
 import queue
 import threading
+from speech_module import get_baidu_token, text_to_speech, play_audio_queue
 
 def initialize_gpt_client(api_key, base_url="https://api.deepseek.com"):
     return OpenAI(api_key=api_key, base_url=base_url)
-
-def get_baidu_token(api_key, secret_key):
-    auth_url = "https://aip.baidubce.com/oauth/2.0/token"
-    params = {
-        'grant_type': 'client_credentials',
-        'client_id': api_key,
-        'client_secret': secret_key
-    }
-    response = requests.get(auth_url, params=params)
-    response_json = response.json()
-    return response_json['access_token']
-
-def text_to_speech(text, token, audio_queue):
-    tts_url = "https://tsn.baidu.com/text2audio"
-    params = {
-        'tex': text,
-        'tok': token,
-        'cuid': 'GPT-3-Client',
-        'ctp': 1,
-        'lan': 'zh',
-        'spd': 5,
-        'pit': 5,
-        'vol': 5,
-        'per': 0,
-        'aue': 6
-    }
-    response = requests.post(tts_url, params=params, stream=True)
-    if response.status_code == 200:
-        audio_queue.put(response.content)
-
-def play_audio_queue(audio_queue):
-    while True:
-        audio_data = audio_queue.get()
-        if audio_data == "STOP":
-            break
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.wav') as f:
-            f.write(audio_data)
-            f.flush()
-            subprocess.run(['aplay', f.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def process_text(client, conversation_history, input_text, token, audio_queue, MAX_HISTORY_LENGTH=5):
     conversation_history.append({"role": "user", "content": input_text})
@@ -61,12 +20,23 @@ def process_text(client, conversation_history, input_text, token, audio_queue, M
     )
     
     ai_response_text = ""
+    speech_buffer = ""  # 用于累积文本，直到遇到特定标点
     print("\rAI回复:", end="")
     for resp in response:
         content = resp.choices[0].delta.content
         ai_response_text += content
         print(content, end="")
-        text_to_speech(content, token, audio_queue)
+        
+        # 累积内容到speech_buffer，直到遇到特定标点
+        speech_buffer += content
+        if any(punct in content for punct in ['，', '。','.','!','?']):
+            text_to_speech(speech_buffer, token, audio_queue)
+            speech_buffer = ""  # 清空buffer
+
+    # 处理剩余的文本（如果有）
+    if speech_buffer:
+        text_to_speech(speech_buffer, token, audio_queue)
+
     print()
 
     conversation_history.append({"role": "assistant", "content": ai_response_text})

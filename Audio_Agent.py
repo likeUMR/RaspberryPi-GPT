@@ -1,12 +1,14 @@
-import speech_recognition as sr
 import os
 import json
+import queue
+import threading
+import speech_recognition as sr
 from hotword_detection import create_detector, get_audio_stream, detect_hotword
 from speech_to_text import initialize_baidu_client, recognize_speech_from_mic
 from gpt_client import initialize_gpt_client, process_text
+from speech_module import get_baidu_token, text_to_speech, play_audio_queue
 
 def main():
-
     # 获取当前脚本文件所在的绝对路径
     dir_path = os.path.dirname(os.path.realpath(__file__))
     config_path = os.path.join(dir_path, 'config.json')
@@ -36,17 +38,24 @@ def main():
     microphone = sr.Microphone(sample_rate=16000)
     conversation_history = []
     
+    baidu_token = get_baidu_token(config['baidu_api_key'], config['baidu_secret_key'])
+    audio_queue = queue.Queue()
+    audio_thread = threading.Thread(target=play_audio_queue, args=(audio_queue,))
+    audio_thread.start()
+
     try:
         while True:
-            print("\rListening for hotword...",end='')
+            print("\rListening for hotword...", end='')
             if detect_hotword(porcupine, audio_stream) >= 0:
-                print("\rHotword Detected!     ",end='')
+                print("\rHotword Detected!     ", end='')
                 recognized_text = recognize_speech_from_mic(baidu_client, recognizer, microphone)
                 print("\r用户:", recognized_text)
                 if recognized_text:
-                    response_text = process_text(gpt_client, conversation_history, recognized_text, max_history_length)
+                    response_text = process_text(gpt_client, conversation_history, recognized_text, baidu_token, audio_queue, max_history_length)
     except KeyboardInterrupt:
         print("Stopping...")
+        audio_queue.put("STOP")
+        audio_thread.join()
     finally:
         audio_stream.close()
         pa.terminate()
